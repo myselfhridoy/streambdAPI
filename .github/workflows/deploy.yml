@@ -50,7 +50,7 @@ jobs:
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
         run: |
-          echo "$FIREBASE_CREDENTIALS" > serviceAccountKey.json
+          python -c "import os; open('serviceAccountKey.json', 'w').write(os.environ.get('FIREBASE_CREDENTIALS', ''))"
 
       - name: Send Push Notifications
         working-directory: ./source-code
