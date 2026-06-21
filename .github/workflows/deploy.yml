@@ -39,6 +39,9 @@ jobs:
 
       - name: Generate Static API Files
         working-directory: ./source-code
+        env:
+          API_AES_KEY: ${{ secrets.API_AES_KEY }}
+          API_AES_IV: ${{ secrets.API_AES_IV }}
         run: |
           python app.py
           
