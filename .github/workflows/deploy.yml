@@ -1,0 +1,83 @@
+name: Generate API and Deploy to GitHub Pages
+
+on:
+  schedule:
+    # Run every 15 minutes to get the latest match status and stream links
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Private Source Repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'myselfhridoy/LiveEventSchedule'
+          token: ${{ secrets.PRIVATE_REPO_PAT }}
+          path: 'source-code'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        working-directory: ./source-code
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate Static API Files
+        working-directory: ./source-code
+        run: |
+          python app.py
+          
+      - name: Setup Firebase Credentials
+        working-directory: ./source-code
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          echo "$FIREBASE_CREDENTIALS" > serviceAccountKey.json
+
+      - name: Send Push Notifications
+        working-directory: ./source-code
+        run: |
+          python pushNotify/send_notifications.py
+          
+      - name: Commit Updated Data & State to Private Repo
+        working-directory: ./source-code
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add api/football/leagues.json api/cricket/leagues.json notified_events.json || true
+          git commit -m "chore: Auto-update leagues configs, API data, and notification state" || true
+          git push origin HEAD:main || true
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+          
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'source-code/public'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
